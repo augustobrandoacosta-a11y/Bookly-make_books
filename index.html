@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Custom Book Maker</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0e6d2; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #book-container { background: white; width: 600px; min-height: 800px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border-radius: 5px; border-left: 20px solid #5a3e2b; }
+        canvas { border: 2px dashed #ccc; cursor: crosshair; background: #fff; width: 100%; height: 300px; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        input, textarea { width: 100%; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { padding: 10px 20px; cursor: pointer; background: #5a3e2b; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #825a3c; }
+        .page { display: none; }
+        .active { display: block; }
+        .content-item { border-bottom: 1px dotted #000; display: flex; justify-content: space-between; margin: 10px 0; }
+        h1 { text-align: center; color: #333; }
+        .subheading-block { background: #f9f9f9; padding: 10px; margin: 10px 0; border-left: 5px solid #5a3e2b; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button onclick="saveBook()">💾 Save Book</button>
+        <button onclick="clearBook()" style="background: #a32a2a;">🗑️ Start Over</button>
+        <button onclick="generateTableOfContents()">📖 Make Contents Page</button>
+    </div>
+
+    <div id="book-container">
+        <div id="cover-page" class="page active">
+            <h1>Book Cover</h1>
+            <canvas id="canvas"></canvas>
+            <button onclick="clearCanvas()">Clear Drawing</button>
+            <input type="text" id="book-title" placeholder="Enter Book Title..." oninput="updateTitle()">
+            <h2 id="display-title" style="text-align: center;"></h2>
+        </div>
+
+        <div id="contents-page" class="page">
+            <h1>Contents</h1>
+            <div id="toc-list"></div>
+        </div>
+
+        <div id="writing-page" class="page">
+            <label>Introduction</label>
+            <textarea id="intro-text" rows="5" placeholder="Write your introduction here..."></textarea>
+            
+            <div id="subheadings-container"></div>
+            <button onclick="addSubheading()">+ Add Sub-heading</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+
+        // Setup Drawing
+        canvas.width = 520;
+        canvas.height = 300;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#000';
+
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        function draw(e) {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+        }
+
+        function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+
+        function updateTitle() {
+            document.getElementById('display-title').innerText = document.getElementById('book-title').value;
+        }
+
+        // Subheadings Logic
+        function addSubheading(valH = '', valT = '') {
+            const container = document.getElementById('subheadings-container');
+            const div = document.createElement('div');
+            div.className = 'subheading-block';
+            div.innerHTML = `
+                <input type="text" class="sub-h" placeholder="Sub-heading Title..." value="${valH}">
+                <textarea class="sub-t" rows="3" placeholder="Sub-heading text..." >${valT}</textarea>
+            `;
+            container.appendChild(div);
+        }
+
+        // Navigation & Logic
+        function generateTableOfContents() {
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            
+            // Introduction is always Page 1
+            tocList.innerHTML += `<div class="content-item"><span>Introduction</span><span>Page 1</span></div>`;
+            
+            const subs = document.querySelectorAll('.sub-h');
+            subs.forEach((sub, index) => {
+                if(sub.value.trim() !== "") {
+                    tocList.innerHTML += `<div class="content-item"><span>${sub.value}</span><span>Page ${index + 2}</span></div>`;
+                }
+            });
+
+            // Switch views
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('contents-page').classList.add('active');
+            document.getElementById('writing-page').classList.add('active');
+        }
+
+        // SAVE AND LOAD SYSTEM
+        function saveBook() {
+            const bookData = {
+                title: document.getElementById('book-title').value,
+                cover: canvas.toDataURL(),
+                intro: document.getElementById('intro-text').value,
+                subs: []
+            };
+
+            document.querySelectorAll('.subheading-block').forEach(block => {
+                bookData.subs.push({
+                    h: block.querySelector('.sub-h').value,
+                    t: block.querySelector('.sub-t').value
+                });
+            });
+
+            localStorage.setItem('myCustomBook', JSON.stringify(bookData));
+            alert("Book saved to your browser!");
+        }
+
+        function loadBook() {
+            const saved = localStorage.getItem('myCustomBook');
+            if (!saved) return;
+
+            const data = JSON.parse(saved);
+            document.getElementById('book-title').value = data.title;
+            document.getElementById('display-title').innerText = data.title;
+            document.getElementById('intro-text').value = data.intro;
+
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0);
+            img.src = data.cover;
+
+            data.subs.forEach(s => addSubheading(s.h, s.t));
+        }
+
+        function clearBook() {
+            if(confirm("Are you sure? This deletes your current book!")) {
+                localStorage.removeItem('myCustomBook');
+                location.reload();
+            }
+        }
+
+        // Initial Load
+        window.onload = loadBook;
+    </script>
+</body>
+</html>
